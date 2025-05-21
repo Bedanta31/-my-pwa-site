@@ -1,7 +1,7 @@
 {
   "name": "Memory Power",
   "short_name": "Memory",
-  "start_url": "Index.html",
+  "start_url": "index.html",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#f57c00",
