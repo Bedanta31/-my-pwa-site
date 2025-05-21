@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "io.github.bedanta31.twa",
+      "sha256_cert_fingerprints": [
+        "EA:9B:F2:A8:9F:18:45:D6:0F:09:09:3C:0C:56:FE:9E:42:A1:13:39:E7:0C:8E:D3:EE:1F:4B:24:DD:FB:DC:B6"
+      ]
+    }
+  }
+]
