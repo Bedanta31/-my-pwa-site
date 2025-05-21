@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#000000">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Memory Card Game</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f0f0;
+      text-align: center;
+      padding: 20px;
+    }
+    h1 {
+      margin-bottom: 10px;
+    }
+    #setupControls, #gameControls {
+      margin-bottom: 20px;
+    }
+    select, button {
+      padding: 10px 15px;
+      font-size: 16px;
+      margin: 5px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      cursor: pointer;
+    }
+    #info {
+      font-size: 18px;
+      margin-bottom: 10px;
+    }
+    #timerContainer {
+      width: 300px;
+      height: 20px;
+      background: #ddd;
+      border-radius: 10px;
+      margin: 0 auto 10px;
+      overflow: hidden;
+    }
+    #timerBar {
+      height: 100%;
+      width: 100%;
+      background: green;
+      transition: width 0.5s ease, background 0.3s ease;
+    }
+    #timerBar.flash {
+      animation: flashRed 1s infinite;
+    }
+    @keyframes flashRed {
+      0%, 100% { background: red; }
+      50% { background: darkred; }
+    }
+    #timerBar.bonus {
+      animation: bonusGlow 0.5s ease;
+    }
+    @keyframes bonusGlow {
+      0% { background-color: yellow; }
+      100% { background-color: green; }
+    }
+
+    #gameBoard {
+      display: grid;
+      grid-gap: 10px;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+    .card {
+      width: 100px;
+      height: 100px;
+      perspective: 600px;
+      cursor: pointer;
+    }
+    .card-inner {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform 0.5s;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+      background-color: #333;
+    }
+    .flip .card-inner {
+      transform: rotateY(180deg);
+    }
+    .card-front, .card-back {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      border-radius: 10px;
+    }
+    .card-front {
+      background-color: #444;
+    }
+    .card-back {
+      transform: rotateY(180deg);
+      background-size: cover;
+      background-position: center;
+      background-color: #ccc;
+    }
+    #winMessage {
+      font-size: 20px;
+      color: green;
+      min-height: 28px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Memory Card Game</h1>
+
+  <div id="setupControls">
+    <select id="difficulty">
+      <option value="easy">Easy (4×4)</option>
+      <option value="medium">Medium (6×6)</option>
+      <option value="hard">Hard (8×8)</option>
+    </select>
+    <button id="startBtn">Start Game</button>
+  </div>
+
+  <div id="gameControls" style="display:none;">
+    <button id="restartBtn">Restart</button>
+    <button id="musicToggleBtn">Play Music</button>
+    <button id="resetScoreBtn">Reset High Score</button>
+    <button id="backToMenuBtn">Back to Menu</button>
+  </div>
+
+  <div id="info">
+    <div id="timerContainer">
+      <div id="timerBar"></div>
+    </div>
+    High Score: <span id="highScore">0</span>
+  </div>
+
+  <div id="gameBoard"></div>
+  <div id="winMessage"></div>
+
+  <audio id="bgMusic" loop src="content://media/external/downloads/1000037224"></audio>
+  <audio id="winSound" src="https://www.soundjay.com/human/sounds/applause-8.mp3"></audio>
+
+  <script>
+    const stableImageSeeds = Array.from({ length: 64 }, (_, i) => `img${i + 1}`);
+
+    const gameBoard = document.getElementById("gameBoard");
+    const highScoreDisplay = document.getElementById("highScore");
+    const winMessage = document.getElementById("winMessage");
+    const startBtn = document.getElementById("startBtn");
+    const restartBtn = document.getElementById("restartBtn");
+    const difficultySelect = document.getElementById("difficulty");
+    const winSound = document.getElementById("winSound");
+    const bgMusic = document.getElementById("bgMusic");
+    const musicToggleBtn = document.getElementById("musicToggleBtn");
+    const resetScoreBtn = document.getElementById("resetScoreBtn");
+    const backToMenuBtn = document.getElementById("backToMenuBtn");
+    const setupControls = document.getElementById("setupControls");
+    const gameControls = document.getElementById("gameControls");
+    const timerBar = document.getElementById("timerBar");
+
+    let timer = 0;
+    let interval;
+    let flippedCards = [];
+    let matched = 0;
+    let totalPairs = 0;
+    let lockBoard = false;
+    let currentDifficulty = "easy";
+    let musicPlaying = false;
+
+    startBtn.onclick = () => {
+      currentDifficulty = difficultySelect.value;
+      setupGame(currentDifficulty);
+      setupControls.style.display = "none";
+      gameControls.style.display = "inline-block";
+      playMusic();
+    };
+
+    restartBtn.onclick = () => {
+      setupGame(currentDifficulty);
+      playMusic();
+    };
+
+    musicToggleBtn.onclick = () => {
+      if (musicPlaying) {
+        bgMusic.pause();
+        musicPlaying = false;
+        musicToggleBtn.textContent = "Play Music";
+      } else {
+        playMusic();
+      }
+    };
+
+    resetScoreBtn.onclick = () => {
+      if (confirm("Reset high score?")) {
+        localStorage.removeItem(`memory_highscore_${currentDifficulty}`);
+        showHighScore(currentDifficulty);
+      }
+    };
+
+    backToMenuBtn.onclick = () => {
+      stopTimer();
+      stopBackgroundMusic();
+      setupControls.style.display = "block";
+      gameControls.style.display = "none";
+      gameBoard.innerHTML = "";
+      winMessage.textContent = "";
+      timerBar.style.width = "100%";
+      timerBar.classList.remove("flash");
+      showHighScore(difficultySelect.value);
+    };
+
+    function setupGame(difficulty) {
+      stopTimer();
+      resetGame();
+      gameBoard.innerHTML = "";
+      winMessage.textContent = "";
+      timerBar.style.width = "100%";
+      timerBar.classList.remove("flash");
+      winSound.pause();
+      winSound.currentTime = 0;
+
+      let size, pairs;
+      if (difficulty === "easy") {
+        size = 4;
+        pairs = 8;
+      } else if (difficulty === "medium") {
+        size = 6;
+        pairs = 18;
+      } else {
+        size = 8;
+        pairs = 32;
+      }
+      totalPairs = pairs;
+      gameBoard.style.gridTemplateColumns = `repeat(${size}, 100px)`;
+
+      let selectedSeeds = stableImageSeeds.slice(0, pairs);
+      let imagePool = [];
+      selectedSeeds.forEach(seed => {
+        const img = `https://picsum.photos/seed/${seed}/100/100`;
+        imagePool.push(img, img);
+      });
+
+      shuffleArray(imagePool);
+
+      imagePool.forEach((imgUrl, idx) => {
+        const card = createCard(imgUrl, idx);
+        gameBoard.appendChild(card);
+      });
+
+      showHighScore(difficulty);
+      startTimer();
+    }
+
+    function createCard(imgUrl) {
+      const card = document.createElement("div");
+      card.classList.add("card");
+      card.innerHTML = `
+        <div class="card-inner">
+          <div class="card-front"></div>
+          <div class="card-back" style="background-image: url('${imgUrl}')"></div>
+        </div>
+      `;
+      card.addEventListener("click", () => handleFlip(card, imgUrl));
+      return card;
+    }
+
+    function handleFlip(card, imgUrl) {
+      if (lockBoard || card.classList.contains("flip") || flippedCards.length >= 2) return;
+
+      card.classList.add("flip");
+      flippedCards.push({ card, imgUrl });
+
+      if (flippedCards.length === 2) {
+        lockBoard = true;
+        const [first, second] = flippedCards;
+        if (first.imgUrl === second.imgUrl) {
+          matched++;
+          flippedCards = [];
+          lockBoard = false;
+
+          // Bonus time
+          let bonus = currentDifficulty === "easy" ? 2 :
+                      currentDifficulty === "medium" ? 4 : 6;
+          timer += bonus;
+          timerBar.classList.add("bonus");
+          updateTimerDisplay();
+          setTimeout(() => timerBar.classList.remove("bonus"), 500);
+
+          if (matched === totalPairs) {
+            stopTimer();
+            stopBackgroundMusic();
+            const score = calculateScore(currentDifficulty, timer);
+            saveHighScore(currentDifficulty, score);
+            winMessage.textContent = `You won with ${timer} sec left! Score: ${score}`;
+            winSound.play();
+            showHighScore(currentDifficulty);
+          }
+        } else {
+          setTimeout(() => {
+            first.card.classList.remove("flip");
+            second.card.classList.remove("flip");
+            flippedCards = [];
+            lockBoard = false;
+          }, 800);
+        }
+      }
+    }
+
+    function shuffleArray(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+    }
+
+    function startTimer() {
+      timer = currentDifficulty === "easy" ? 60 : currentDifficulty === "medium" ? 120 : 180;
+      updateTimerDisplay();
+
+      interval = setInterval(() => {
+        timer--;
+        updateTimerDisplay();
+        if (timer <= 0) {
+          stopTimer();
+          lockBoard = true;
+          stopBackgroundMusic();
+          winMessage.textContent = "Time’s up! Game Over. Score: 0";
+        }
+      }, 1000);
+    }
+
+    function updateTimerDisplay() {
+      const fullTime = currentDifficulty === "easy" ? 60 : currentDifficulty === "medium" ? 120 : 180;
+      const percentage = (timer / fullTime) * 100;
+      timerBar.style.width = percentage + "%";
+
+      if (timer <= 10) {
+        timerBar.classList.add("flash");
+      } else {
+        timerBar.classList.remove("flash");
+      }
+    }
+
+    function stopTimer() {
+      clearInterval(interval);
+    }
+
+    function resetGame() {
+      flippedCards = [];
+      matched = 0;
+      lockBoard = false;
+    }
+
+    function calculateScore(difficulty, timeLeft) {
+      let maxScore = difficulty === "easy" ? 1000 : difficulty === "medium" ? 2000 : 3000;
+      const fullTime = difficulty === "easy" ? 60 : difficulty === "medium" ? 120 : 180;
+      return Math.floor((timeLeft / fullTime) * maxScore);
+    }
+
+    function saveHighScore(difficulty, score) {
+      const key = `memory_highscore_${difficulty}`;
+      const best = localStorage.getItem(key);
+      if (!best || score > parseInt(best)) {
+        localStorage.setItem(key, score);
+      }
+    }
+
+    function showHighScore(difficulty) {
+      const key = `memory_highscore_${difficulty}`;
+      const best = localStorage.getItem(key);
+      highScoreDisplay.textContent = best ? best : "0";
+    }
+
+    function stopBackgroundMusic() {
+      bgMusic.pause();
+      musicPlaying = false;
+      musicToggleBtn.textContent = "Play Music";
+    }
+
+    function playMusic() {
+      bgMusic.play().then(() => {
+        musicPlaying = true;
+        musicToggleBtn.textContent = "Pause Music";
+      }).catch(() => {
+        musicPlaying = false;
+        musicToggleBtn.textContent = "Play Music";
+      });
+    }
+
+    showHighScore(difficultySelect.value);
+  </script>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('service-worker.js');
+  }
+</script>
+</body>
+</html>
