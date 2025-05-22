@@ -4,6 +4,7 @@ const CACHE_NAME = "pwa-cache-v2"; // Changed version for cache update
 const FILES_TO_CACHE = [
   "/",
   "/index.html",
+  "/music.mp3",
   "/manifest.json",
   "/icon-192x192.png",
   "/icon-512x512.png"
