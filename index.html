@@ -110,6 +110,13 @@
   </style>
 </head>
 <body>
+  <table id="timeTable" style="border-collapse:collapse; position:absolute; text-align:center; background-color:#b3d6a9; border-style:solid; border-color:#004000; border-width:2px; font-family:Times New Roman; font-weight:700; font-size:19px; color:#000080; left:1000px; top:87px; width:232px; height:26px;">
+  <tbody>
+    <tr valign="middle">
+      <td id="time" style="padding:0px; white-space:nowrap;">Current IST: 00:00:00</td>
+    </tr>
+  </tbody>
+</table>
 
   <h1>Memory Card Game</h1>
 
@@ -389,6 +396,23 @@
     }
 
     showHighScore(difficultySelect.value);
+  </script>
+  <script>
+  function updateISTClock() {
+    const now = new Date();
+    const options = {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    };
+    const timeString = now.toLocaleTimeString('en-IN', options);
+    document.getElementById('time').textContent = `Current IST: ${timeString}`;
+  }
+
+  setInterval(updateISTClock, 1000);
+  updateISTClock(); 
   </script>
 <script>
   if ('serviceWorker' in navigator) {
